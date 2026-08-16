@@ -1,11 +1,7 @@
 import bpy
 
 from .operator import VIEW3D_OT_align_view_to_selection
-from .preferences import (
-    _shortcut_status,
-    get_preferences,
-    shortcut_label,
-)
+from .preferences import get_editable_shortcut, shortcut_label
 
 
 class VIEW3D_PT_align_view_to_selection(bpy.types.Panel):
@@ -17,7 +13,6 @@ class VIEW3D_PT_align_view_to_selection(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        prefs = get_preferences(context)
 
         layout.operator(
             VIEW3D_OT_align_view_to_selection.bl_idname,
@@ -25,19 +20,9 @@ class VIEW3D_PT_align_view_to_selection(bpy.types.Panel):
             icon='ORIENTATION_VIEW',
         )
 
-        if prefs is not None and prefs.shortcut_enabled:
-            layout.label(text=f"Shortcut: {shortcut_label(prefs)}")
-            if (
-                _shortcut_status["conflicts"]
-                and not prefs.allow_conflicting_shortcut
-            ):
-                warning = layout.box()
-                warning.alert = True
-                warning.label(
-                    text="Shortcut disabled due to a conflict",
-                    icon='ERROR',
-                )
-                warning.label(text="Change it in Add-on Preferences")
+        _, _, item = get_editable_shortcut(context)
+        if item is not None and item.active:
+            layout.label(text=f"Shortcut: {shortcut_label(item)}")
         else:
             layout.label(text="Shortcut: Disabled")
 
