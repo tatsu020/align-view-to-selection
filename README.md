@@ -20,6 +20,14 @@ It is especially useful when Blender's normal/active-element based alignment doe
 - Configurable keyboard shortcut
 - Detects shortcut conflicts and does **not** steal an existing shortcut by default
 
+## Installation
+
+Download [`dist/align_view_to_selection-1.0.0.zip`](dist/align_view_to_selection-1.0.0.zip), then in Blender open:
+
+**Edit → Preferences → Extensions → Install from Disk...**
+
+Select the ZIP file directly; you do not need to extract it first.
+
 ## Usage
 
 1. Enter **Mesh Edit Mode**.
