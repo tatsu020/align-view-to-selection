@@ -2,11 +2,9 @@ import bpy
 import rna_keymap_ui
 
 OPERATOR_IDNAME = "view3d.align_view_to_selection"
-KEYMAP_NAME = "Mesh"
+KEYMAP_NAME = "3D View"
 
 _addon_keymaps = []
-_shortcut_registration_active = False
-_shortcut_registration_attempts = 0
 
 
 def get_preferences(context=None):
@@ -16,30 +14,19 @@ def get_preferences(context=None):
 
 
 def register_shortcut_keymap(context=None):
-    """Register the add-on shortcut once Blender's add-on keyconfig is ready."""
+    """Register the shortcut using Blender's built-in 3D View keymap."""
     context = context or bpy.context
-    wm = getattr(context, "window_manager", None)
-    if wm is None:
-        return False
-
+    wm = context.window_manager
     keyconfig = wm.keyconfigs.addon
     if keyconfig is None:
-        return False
+        return
 
-    # Avoid duplicates after reloads or delayed registration retries.
-    keymap = keyconfig.keymaps.get(KEYMAP_NAME)
-    if keymap is not None:
-        stale_items = [
-            item for item in keymap.keymap_items
-            if item.idname == OPERATOR_IDNAME
-        ]
-        for item in stale_items:
-            try:
-                keymap.keymap_items.remove(item)
-            except Exception:
-                pass
-
-    keymap = keyconfig.keymaps.new(name=KEYMAP_NAME, space_type='EMPTY')
+    # Blender's API documentation requires the keymap name to match the
+    # built-in keymap exactly. For a viewport operator, target "3D View".
+    keymap = keyconfig.keymaps.new(
+        name=KEYMAP_NAME,
+        space_type='VIEW_3D',
+    )
     item = keymap.keymap_items.new(
         OPERATOR_IDNAME,
         type='NUMPAD_7',
@@ -47,42 +34,6 @@ def register_shortcut_keymap(context=None):
         alt=True,
     )
     _addon_keymaps.append((keymap, item))
-    return True
-
-
-def schedule_shortcut_registration():
-    """
-    Register the shortcut after add-on startup.
-
-    During extension/add-on registration Blender may not have the add-on
-    keyconfig ready yet. Retry briefly instead of silently losing the shortcut.
-    """
-    global _shortcut_registration_active, _shortcut_registration_attempts
-
-    _shortcut_registration_active = True
-    _shortcut_registration_attempts = 0
-
-    def try_register():
-        global _shortcut_registration_attempts
-
-        if not _shortcut_registration_active:
-            return None
-
-        if register_shortcut_keymap():
-            return None
-
-        _shortcut_registration_attempts += 1
-        if _shortcut_registration_attempts >= 20:
-            return None
-
-        return 0.10
-
-    bpy.app.timers.register(try_register, first_interval=0.0)
-
-
-def stop_shortcut_registration():
-    global _shortcut_registration_active
-    _shortcut_registration_active = False
 
 
 def remove_shortcut_keymap():
@@ -153,7 +104,7 @@ def find_shortcut_conflicts(context, target_item):
 
     conflicts = []
     seen = set()
-    relevant_names = {KEYMAP_NAME, '3D View', '3D View Generic', 'Window'}
+    relevant_names = {KEYMAP_NAME, '3D View Generic', 'Window'}
 
     for keymap in active_keyconfig.keymaps:
         if (
