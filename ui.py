@@ -25,8 +25,3 @@ class VIEW3D_PT_align_view_to_selection(bpy.types.Panel):
             layout.label(text=f"Shortcut: {shortcut_label(item)}")
         else:
             layout.label(text="Shortcut: Disabled")
-
-        layout.separator()
-        info = layout.box()
-        info.label(text="Select any 3+ vertices")
-        info.label(text="Edge loops / disconnected points work")
