@@ -5,6 +5,8 @@ OPERATOR_IDNAME = "view3d.align_view_to_selection"
 KEYMAP_NAME = "Mesh"
 
 _addon_keymaps = []
+_shortcut_registration_active = False
+_shortcut_registration_attempts = 0
 
 
 def get_preferences(context=None):
@@ -14,10 +16,28 @@ def get_preferences(context=None):
 
 
 def register_shortcut_keymap(context=None):
+    """Register the add-on shortcut once Blender's add-on keyconfig is ready."""
     context = context or bpy.context
-    keyconfig = context.window_manager.keyconfigs.addon
+    wm = getattr(context, "window_manager", None)
+    if wm is None:
+        return False
+
+    keyconfig = wm.keyconfigs.addon
     if keyconfig is None:
-        return
+        return False
+
+    # Avoid duplicates after reloads or delayed registration retries.
+    keymap = keyconfig.keymaps.get(KEYMAP_NAME)
+    if keymap is not None:
+        stale_items = [
+            item for item in keymap.keymap_items
+            if item.idname == OPERATOR_IDNAME
+        ]
+        for item in stale_items:
+            try:
+                keymap.keymap_items.remove(item)
+            except Exception:
+                pass
 
     keymap = keyconfig.keymaps.new(name=KEYMAP_NAME, space_type='EMPTY')
     item = keymap.keymap_items.new(
@@ -27,10 +47,45 @@ def register_shortcut_keymap(context=None):
         alt=True,
     )
     _addon_keymaps.append((keymap, item))
+    return True
+
+
+def schedule_shortcut_registration():
+    """
+    Register the shortcut after add-on startup.
+
+    During extension/add-on registration Blender may not have the add-on
+    keyconfig ready yet. Retry briefly instead of silently losing the shortcut.
+    """
+    global _shortcut_registration_active, _shortcut_registration_attempts
+
+    _shortcut_registration_active = True
+    _shortcut_registration_attempts = 0
+
+    def try_register():
+        global _shortcut_registration_attempts
+
+        if not _shortcut_registration_active:
+            return None
+
+        if register_shortcut_keymap():
+            return None
+
+        _shortcut_registration_attempts += 1
+        if _shortcut_registration_attempts >= 20:
+            return None
+
+        return 0.10
+
+    bpy.app.timers.register(try_register, first_interval=0.0)
+
+
+def stop_shortcut_registration():
+    global _shortcut_registration_active
+    _shortcut_registration_active = False
 
 
 def remove_shortcut_keymap():
-    # Remove only the items we created. Other add-ons may share the same keymap.
     for keymap, item in reversed(_addon_keymaps):
         try:
             keymap.keymap_items.remove(item)
@@ -40,7 +95,6 @@ def remove_shortcut_keymap():
 
 
 def get_editable_shortcut(context):
-    """Return the persistent user KeyMapItem when available."""
     wm = context.window_manager
     user_keyconfig = wm.keyconfigs.user
 
@@ -51,8 +105,6 @@ def get_editable_shortcut(context):
                 if item.idname == OPERATOR_IDNAME:
                     return user_keyconfig, keymap, item
 
-    # Fallback for the short window before the add-on keymap is mirrored into
-    # the user keyconfig. This still displays the actual registered shortcut.
     addon_keyconfig = wm.keyconfigs.addon
     if addon_keyconfig is not None and _addon_keymaps:
         keymap, item = _addon_keymaps[0]
@@ -92,7 +144,6 @@ def _same_event(a, b):
 
 
 def find_shortcut_conflicts(context, target_item):
-    """Find active shortcuts that use the same event in relevant contexts."""
     if target_item is None or not target_item.active:
         return []
 
