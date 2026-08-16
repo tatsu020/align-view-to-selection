@@ -18,15 +18,8 @@ It is especially useful when Blender's normal/active-element based alignment doe
 - Smooth Blender-like view transition
 - Optional automatic Transform Orientation → `View`
 - Configurable keyboard shortcut
-- Detects shortcut conflicts and does **not** steal an existing shortcut by default
-
-## Installation
-
-Download [`dist/align_view_to_selection-1.0.0.zip`](dist/align_view_to_selection-1.0.0.zip), then in Blender open:
-
-**Edit → Preferences → Extensions → Install from Disk...**
-
-Select the ZIP file directly; you do not need to extract it first.
+- Uses Blender's standard Keymap UI for shortcut editing
+- Detects shortcut conflicts and shows a warning
 
 ## Usage
 
@@ -48,22 +41,9 @@ Open:
 
 **Edit → Preferences → Add-ons / Extensions → Align View to Selection**
 
-You can change:
+The shortcut is shown with Blender's standard Keymap editor UI, so you can change the key, modifiers, event type, or disable the binding exactly like other Blender shortcuts.
 
-- key
-- Ctrl
-- Shift
-- Alt
-- whether the shortcut is enabled
-
-If Blender already has an active command using the same shortcut in a relevant 3D View/Edit Mode keymap, Align View to Selection warns you and leaves its own shortcut disabled.
-
-You can either:
-
-- choose another shortcut; or
-- explicitly enable **Allow Conflicting Shortcut**.
-
-This prevents the add-on from silently taking over an existing key binding.
+If another active command uses the same key combination in a relevant 3D View/Edit Mode context, the add-on shows a conflict warning so you can change or disable one of the bindings.
 
 ## View behavior
 
@@ -81,7 +61,7 @@ The transition duration follows Blender-style angle scaling: smaller rotations c
 
 ## Auto Transform Orientation: View
 
-When enabled, the add-on switches Transform Orientation to `View` after alignment.
+This option is **off by default**. When enabled, the add-on switches Transform Orientation to `View` after alignment.
 
 It stays in `View` while you:
 
