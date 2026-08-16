@@ -11,12 +11,11 @@ def register():
     for cls in classes:
         preferences.bpy.utils.register_class(cls)
 
-    preferences.schedule_shortcut_registration()
+    preferences.register_shortcut_keymap()
 
 
 def unregister():
     operator.clear_orientation_watches()
-    preferences.stop_shortcut_registration()
     preferences.remove_shortcut_keymap()
 
     for cls in reversed(classes):
