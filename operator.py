@@ -9,7 +9,7 @@ from .geometry import (
     rotation_preserve_roll,
     selected_world_points,
 )
-from .preferences import DEFAULT_TRANSITION_MS, get_preferences
+from .preferences import get_preferences
 
 
 _orientation_watch_tokens = {}
@@ -179,8 +179,8 @@ class VIEW3D_OT_align_view_to_selection(bpy.types.Operator):
         self._fixed_distance = rv3d.view_distance
 
         prefs = get_preferences(context)
-        base_ms = prefs.transition_ms if prefs else DEFAULT_TRANSITION_MS
-        self._auto_view = prefs.auto_view_orientation if prefs else True
+        base_ms = 200
+        self._auto_view = prefs.auto_view_orientation if prefs else False
 
         quat_dot = abs(max(
             -1.0,
