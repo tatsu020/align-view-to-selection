@@ -1,17 +1,10 @@
 import bpy
+import rna_keymap_ui
 
-DEFAULT_TRANSITION_MS = 200
 OPERATOR_IDNAME = "view3d.align_view_to_selection"
+KEYMAP_NAME = "Mesh"
 
 _addon_keymaps = []
-_shortcut_status = {"registered": False, "conflicts": []}
-
-
-SHORTCUT_KEY_ITEMS = [
-    *[(f"NUMPAD_{i}", f"Numpad {i}", "") for i in range(10)],
-    *[(f"F{i}", f"F{i}", "") for i in range(5, 13)],
-    *[(letter, letter, "") for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"],
-]
 
 
 def get_preferences(context=None):
@@ -20,45 +13,98 @@ def get_preferences(context=None):
     return addon.preferences if addon else None
 
 
-def shortcut_label(prefs):
-    parts = []
-    if prefs.shortcut_ctrl:
-        parts.append("Ctrl")
-    if prefs.shortcut_shift:
-        parts.append("Shift")
-    if prefs.shortcut_alt:
-        parts.append("Alt")
+def register_shortcut_keymap(context=None):
+    context = context or bpy.context
+    keyconfig = context.window_manager.keyconfigs.addon
+    if keyconfig is None:
+        return
 
-    labels = {identifier: label for identifier, label, _ in SHORTCUT_KEY_ITEMS}
-    parts.append(labels.get(prefs.shortcut_key, prefs.shortcut_key))
+    keymap = keyconfig.keymaps.new(name=KEYMAP_NAME, space_type='EMPTY')
+    item = keymap.keymap_items.new(
+        OPERATOR_IDNAME,
+        type='NUMPAD_7',
+        value='PRESS',
+        alt=True,
+    )
+    _addon_keymaps.append((keymap, item))
+
+
+def remove_shortcut_keymap():
+    # Remove only the items we created. Other add-ons may share the same keymap.
+    for keymap, item in reversed(_addon_keymaps):
+        try:
+            keymap.keymap_items.remove(item)
+        except Exception:
+            pass
+    _addon_keymaps.clear()
+
+
+def get_editable_shortcut(context):
+    """Return the persistent user KeyMapItem when available."""
+    wm = context.window_manager
+    user_keyconfig = wm.keyconfigs.user
+
+    if user_keyconfig is not None:
+        keymap = user_keyconfig.keymaps.get(KEYMAP_NAME)
+        if keymap is not None:
+            for item in keymap.keymap_items:
+                if item.idname == OPERATOR_IDNAME:
+                    return user_keyconfig, keymap, item
+
+    # Fallback for the short window before the add-on keymap is mirrored into
+    # the user keyconfig. This still displays the actual registered shortcut.
+    addon_keyconfig = wm.keyconfigs.addon
+    if addon_keyconfig is not None and _addon_keymaps:
+        keymap, item = _addon_keymaps[0]
+        return addon_keyconfig, keymap, item
+
+    return None, None, None
+
+
+def shortcut_label(item):
+    if item is None:
+        return "Not registered"
+
+    parts = []
+    if item.ctrl:
+        parts.append("Ctrl")
+    if item.shift:
+        parts.append("Shift")
+    if item.alt:
+        parts.append("Alt")
+    if item.oskey:
+        parts.append("OSKey")
+
+    parts.append(item.type.replace("NUMPAD_", "Numpad ").replace("_", " ").title())
     return " + ".join(parts)
 
 
-def shortcut_matches_kmi(kmi, prefs):
+def _same_event(a, b):
     return (
-        kmi.type == prefs.shortcut_key
-        and kmi.value == 'PRESS'
-        and bool(kmi.ctrl) == bool(prefs.shortcut_ctrl)
-        and bool(kmi.shift) == bool(prefs.shortcut_shift)
-        and bool(kmi.alt) == bool(prefs.shortcut_alt)
-        and not bool(kmi.oskey)
-        and kmi.key_modifier == 'NONE'
+        a.type == b.type
+        and a.value == b.value
+        and bool(a.ctrl) == bool(b.ctrl)
+        and bool(a.shift) == bool(b.shift)
+        and bool(a.alt) == bool(b.alt)
+        and bool(a.oskey) == bool(b.oskey)
+        and a.key_modifier == b.key_modifier
     )
 
 
-def find_shortcut_conflicts(context, prefs):
-    """Find active bindings that can compete in the 3D View/Edit Mesh context."""
-    wm = context.window_manager
+def find_shortcut_conflicts(context, target_item):
+    """Find active shortcuts that use the same event in relevant contexts."""
+    if target_item is None or not target_item.active:
+        return []
+
+    active_keyconfig = context.window_manager.keyconfigs.active
+    if active_keyconfig is None:
+        return []
+
     conflicts = []
     seen = set()
-    relevant_names = {'Mesh', '3D View', '3D View Generic', 'Window'}
+    relevant_names = {KEYMAP_NAME, '3D View', '3D View Generic', 'Window'}
 
-    # The active keyconfig already represents the effective user configuration.
-    keyconfig = getattr(wm.keyconfigs, 'active', None)
-    if keyconfig is None:
-        return conflicts
-
-    for keymap in keyconfig.keymaps:
+    for keymap in active_keyconfig.keymaps:
         if (
             keymap.name not in relevant_names
             and keymap.space_type not in {'EMPTY', 'VIEW_3D'}
@@ -68,113 +114,20 @@ def find_shortcut_conflicts(context, prefs):
         for item in keymap.keymap_items:
             if not item.active or item.idname == OPERATOR_IDNAME:
                 continue
-            if not shortcut_matches_kmi(item, prefs):
+            if not _same_event(item, target_item):
                 continue
 
             identity = (keymap.name, item.idname, item.name)
             if identity in seen:
                 continue
             seen.add(identity)
-            conflicts.append({
-                "keymap": keymap.name,
-                "operator": item.idname,
-                "name": item.name or item.idname,
-            })
+            conflicts.append((keymap.name, item.name or item.idname))
 
     return conflicts
 
 
-def remove_shortcut_keymap():
-    for keymap, item in reversed(_addon_keymaps):
-        try:
-            keymap.keymap_items.remove(item)
-        except Exception:
-            pass
-
-    _addon_keymaps.clear()
-    _shortcut_status["registered"] = False
-
-
-def refresh_shortcut_keymap(context=None):
-    context = context or bpy.context
-    remove_shortcut_keymap()
-
-    prefs = get_preferences(context)
-    if prefs is None or not prefs.shortcut_enabled:
-        _shortcut_status["conflicts"] = []
-        return
-
-    conflicts = find_shortcut_conflicts(context, prefs)
-    _shortcut_status["conflicts"] = conflicts
-
-    # Safe default: never silently steal an existing binding.
-    if conflicts and not prefs.allow_conflicting_shortcut:
-        return
-
-    keyconfig = context.window_manager.keyconfigs.addon
-    if keyconfig is None:
-        return
-
-    keymap = keyconfig.keymaps.new(name='Mesh', space_type='EMPTY')
-    item = keymap.keymap_items.new(
-        OPERATOR_IDNAME,
-        type=prefs.shortcut_key,
-        value='PRESS',
-        ctrl=prefs.shortcut_ctrl,
-        shift=prefs.shortcut_shift,
-        alt=prefs.shortcut_alt,
-    )
-    _addon_keymaps.append((keymap, item))
-    _shortcut_status["registered"] = True
-
-
-def schedule_shortcut_refresh(self=None, context=None):
-    def refresh():
-        try:
-            refresh_shortcut_keymap()
-        except Exception:
-            pass
-        return None
-
-    bpy.app.timers.register(refresh, first_interval=0.0)
-
-
-class ALIGNVIEWTOSELECTION_OT_reset_shortcut(bpy.types.Operator):
-    bl_idname = "preferences.align_view_to_selection_reset_shortcut"
-    bl_label = "Reset Shortcut"
-    bl_description = "Reset the shortcut to Alt + Numpad 7"
-
-    def execute(self, context):
-        prefs = get_preferences(context)
-        if prefs is None:
-            return {'CANCELLED'}
-
-        prefs.shortcut_key = 'NUMPAD_7'
-        prefs.shortcut_ctrl = False
-        prefs.shortcut_shift = False
-        prefs.shortcut_alt = True
-        prefs.allow_conflicting_shortcut = False
-        prefs.shortcut_enabled = True
-        refresh_shortcut_keymap(context)
-        return {'FINISHED'}
-
-
 class ALIGNVIEWTOSELECTION_Preferences(bpy.types.AddonPreferences):
     bl_idname = __package__
-
-    transition_ms: bpy.props.IntProperty(
-        name="Base Transition",
-        description=(
-            "Base transition duration for a 180-degree turn; "
-            "smaller view changes automatically finish faster"
-        ),
-        default=DEFAULT_TRANSITION_MS,
-        min=50,
-        max=1500,
-        soft_min=100,
-        soft_max=500,
-        subtype='TIME',
-    )
 
     auto_view_orientation: bpy.props.BoolProperty(
         name="Auto Transform Orientation: View",
@@ -182,93 +135,45 @@ class ALIGNVIEWTOSELECTION_Preferences(bpy.types.AddonPreferences):
             "Switch Transform Orientation to View after alignment, then restore "
             "the previous orientation when the viewing direction changes"
         ),
-        default=True,
-    )
-
-    shortcut_enabled: bpy.props.BoolProperty(
-        name="Enable Shortcut",
-        default=True,
-        update=schedule_shortcut_refresh,
-    )
-    shortcut_key: bpy.props.EnumProperty(
-        name="Key",
-        items=SHORTCUT_KEY_ITEMS,
-        default='NUMPAD_7',
-        update=schedule_shortcut_refresh,
-    )
-    shortcut_ctrl: bpy.props.BoolProperty(
-        name="Ctrl", default=False, update=schedule_shortcut_refresh
-    )
-    shortcut_shift: bpy.props.BoolProperty(
-        name="Shift", default=False, update=schedule_shortcut_refresh
-    )
-    shortcut_alt: bpy.props.BoolProperty(
-        name="Alt", default=True, update=schedule_shortcut_refresh
-    )
-    allow_conflicting_shortcut: bpy.props.BoolProperty(
-        name="Allow Conflicting Shortcut",
-        description=(
-            "Register this shortcut even if another active Blender command "
-            "uses the same key combination"
-        ),
         default=False,
-        update=schedule_shortcut_refresh,
     )
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
 
-        behavior = layout.box()
-        behavior.label(text="View Alignment")
-        behavior.prop(self, "transition_ms")
-        behavior.prop(self, "auto_view_orientation")
+        layout.prop(self, "auto_view_orientation")
+        layout.separator()
 
-        shortcut = layout.box()
-        shortcut.label(text="Shortcut")
-        shortcut.prop(self, "shortcut_enabled")
+        layout.label(text="Shortcut")
+        keyconfig, keymap, item = get_editable_shortcut(context)
 
-        col = shortcut.column()
-        col.enabled = self.shortcut_enabled
+        if keyconfig is None or keymap is None or item is None:
+            layout.label(text="Shortcut is not available.", icon='ERROR')
+            return
 
-        row = col.row(align=True)
-        row.prop(self, "shortcut_key", text="")
-        row.prop(self, "shortcut_ctrl", toggle=True)
-        row.prop(self, "shortcut_shift", toggle=True)
-        row.prop(self, "shortcut_alt", toggle=True)
-
-        col.operator(
-            ALIGNVIEWTOSELECTION_OT_reset_shortcut.bl_idname,
-            icon='LOOP_BACK',
+        row = layout.row()
+        row.context_pointer_set("keymap", keymap)
+        rna_keymap_ui.draw_kmi(
+            ["ADDON", "USER", "DEFAULT"],
+            keyconfig,
+            keymap,
+            item,
+            row,
+            0,
         )
 
-        conflicts = (
-            find_shortcut_conflicts(context, self)
-            if self.shortcut_enabled else []
-        )
-        _shortcut_status["conflicts"] = conflicts
-
+        conflicts = find_shortcut_conflicts(context, item)
         if conflicts:
-            warning = col.box()
+            warning = layout.box()
             warning.alert = True
             warning.label(
-                text=f"Shortcut conflict: {shortcut_label(self)}",
+                text=f"Shortcut conflict: {shortcut_label(item)}",
                 icon='ERROR',
             )
-            for conflict in conflicts[:4]:
-                warning.label(
-                    text=f"{conflict['keymap']}: {conflict['name']}"
-                )
+            for keymap_name, name in conflicts[:4]:
+                warning.label(text=f"{keymap_name}: {name}")
             if len(conflicts) > 4:
                 warning.label(text=f"...and {len(conflicts) - 4} more")
-
-            warning.prop(self, "allow_conflicting_shortcut")
-            if not self.allow_conflicting_shortcut:
-                warning.label(
-                    text="The add-on shortcut stays disabled until resolved."
-                )
-        elif self.shortcut_enabled:
-            col.label(text=f"Active: {shortcut_label(self)}", icon='CHECKMARK')
-
-        info = layout.box()
-        info.label(text="Mesh Edit Mode")
-        info.label(text="Select any 3+ vertices")
+            warning.label(text="Change or disable one of the bindings.")
