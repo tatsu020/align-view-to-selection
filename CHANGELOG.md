@@ -10,6 +10,6 @@ Initial public release.
 - Preserve zoom
 - Smooth angle-scaled transitions
 - Optional automatic Transform Orientation → View
-- Configurable shortcut
-- Shortcut conflict detection and safe fallback
+- Configurable shortcut using Blender's standard Keymap UI
+- Shortcut conflict detection and warning
 - Multi-object Edit Mode support
