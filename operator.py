@@ -42,14 +42,10 @@ def capture_view_state(rv3d):
     state = {
         "rotation": rv3d.view_rotation.copy(),
         "location": rv3d.view_location.copy(),
-        "distance": float(rv3d.view_distance),
         "perspective": rv3d.view_perspective,
     }
 
-    # These are meaningful when camera view is involved. Store them when
-    # available so "Return" can restore the view as faithfully as possible.
-    if hasattr(rv3d, "view_camera_zoom"):
-        state["camera_zoom"] = float(rv3d.view_camera_zoom)
+    # Camera offset affects framing rather than zoom, so it is kept.
     if hasattr(rv3d, "view_camera_offset"):
         state["camera_offset"] = tuple(rv3d.view_camera_offset)
 
@@ -61,12 +57,6 @@ def restore_non_interpolated_view_state(rv3d, state):
         rv3d.view_perspective = state["perspective"]
     except Exception:
         pass
-
-    if "camera_zoom" in state:
-        try:
-            rv3d.view_camera_zoom = state["camera_zoom"]
-        except Exception:
-            pass
 
     if "camera_offset" in state:
         try:
@@ -169,7 +159,6 @@ class _SmoothViewOperator:
         ))
         rotation_angle = 2.0 * math.acos(quat_dot)
 
-        # Keep very small rotations visible when location/zoom still changes.
         rotation_factor = rotation_angle / math.pi
         location_delta = (self._target_location - self._start_location).length
         distance_delta = abs(self._target_distance - self._start_distance)
@@ -341,9 +330,8 @@ class VIEW3D_OT_align_view_to_selection(
     def on_smooth_view_finished(self, context):
         area_pointer = self._area.as_pointer()
 
-        # Save the view we just aligned to, not the view from before alignment.
-        # This lets the user orbit/pan/zoom elsewhere and later return to the
-        # most recent Align View to Selection result.
+        # Save the aligned orientation and center. Zoom is intentionally not
+        # part of the stored state so Return never changes the current zoom.
         _last_aligned_views[area_pointer] = capture_view_state(self._rv3d)
 
         if self._auto_view:
@@ -400,11 +388,13 @@ class VIEW3D_OT_return_to_previous_view(
             }, "No Align View to Selection view is stored yet.")
             return {'CANCELLED'}
 
+        # Return orientation/center only. Keep whatever zoom the user currently
+        # has when invoking this operator.
         return self._begin_smooth_view(
             context,
             target_rotation=state["rotation"],
             target_location=state["location"],
-            target_distance=state["distance"],
+            target_distance=rv3d.view_distance,
             target_state=state,
         )
 
