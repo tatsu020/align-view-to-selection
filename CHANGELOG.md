@@ -5,7 +5,8 @@
 - Added **Return to Last Aligned View**.
 - Stores the destination view created by the latest successful Align View to Selection.
 - Default shortcut: **Alt + Shift + Numpad 7**.
-- Previous-view history is stored separately for each 3D View area.
+- Last-aligned view history is stored separately for each 3D View area.
+- Returning restores the saved orientation and center while preserving the user's current zoom.
 
 ## 1.0.0
 
