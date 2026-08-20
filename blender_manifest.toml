@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "align_view_to_selection"
-version = "1.0.0"
+version = "1.1.0"
 name = "Align View to Selection"
 tagline = "Align the viewport to a best-fit plane from selected vertices"
 maintainer = "tatsu020"
