@@ -6,6 +6,10 @@ Blender標準のビュー整列では扱いづらい、**辺ループ**や**接�
 
 デフォルトショートカット：**Alt + Numpad 7**
 
+最後に Align View to Selection で移動した視点へ戻る：
+
+**Alt + Shift + Numpad 7**
+
 ---
 
 ## インストール
@@ -87,11 +91,10 @@ ONにすると、ビュー整列後に Transform Orientation を `View` へ自�
 
 ### Shortcut
 
+- Align View to Selection: **Alt + Numpad 7**
+- Return to Last Aligned View: **Alt + Shift + Numpad 7**
+
 PreferencesにはBlender標準のKeymap編集UIが表示されます。
-
-デフォルト：
-
-**Alt + Numpad 7**
 
 Blenderの通常のショートカット設定と同じように、キーや修飾キーを変更できます。
 
