@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0
+
+- Added **Return to Last Aligned View**.
+- Stores the destination view created by the latest successful Align View to Selection.
+- Default shortcut: **Alt + Shift + Numpad 7**.
+- Previous-view history is stored separately for each 3D View area.
+
 ## 1.0.0
 
 Initial public release.
@@ -10,6 +17,6 @@ Initial public release.
 - Preserve zoom
 - Smooth angle-scaled transitions
 - Optional automatic Transform Orientation → View
-- Configurable shortcut using Blender's standard Keymap UI
-- Shortcut conflict detection and warning
+- Configurable shortcut
+- Shortcut conflict detection and safe fallback
 - Multi-object Edit Mode support
